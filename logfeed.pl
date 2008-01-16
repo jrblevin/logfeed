@@ -1,47 +1,69 @@
 #!/usr/bin/perl -w
 #
-# log-feed
-# http://code.jblevins.org/log-feed/
+# logfeed
+# http://jblevins.org/projects/logfeed/
 #
 # Author: Jason Blevins <jrblevin@sdf.lonestar.org>
 # License: MIT
 # Created: January 15, 2008
-# Last Modified: January 15, 2008 22:12 EST
+# Last Modified: January 15, 2008 23:29 EST
 
 package logfeed;
 
+use vars qw! $log_file $feed_title $base_url $feed_path $feed_subtitle
+             $feed_icon @ref_ignore @ref_match @req_ignore @req_match
+             @ua_ignore @ua_match $num_entries $reverse_dns $ip $host $rfc931
+             $user $time $utc_date $req $code $sz $ref $short_ref $ua $mode
+             $proto $entry !;
+
 use strict;
+use FileHandle;
 use File::stat;
 use File::ReadBackwards;
 use Date::Parse qw/str2time/;
 use CGI qw/:standard/;
 
-# Configuration variables
-use vars qw! $log_file $feed_title $base_url $feed_path $feed_author
-             @ref_ignore @ref_match @req_ignore @req_match @ua_ignore
-             @ua_match $feed_author_email $feed_author_uri $feed_subtitle
-             $feed_icon $num_entries $reverse_dns $show_ua $show_status
-             $show_size $title !;
+my $version = '1.0';
 
 # Log regexp
 my $reg = qr/^(\S+) (\S+) (\S+) \[([^\]\[]+)\] \"([^"]*)\" (\S+) (\S+) \"?([^"]*)\"? \"([^"]*)\"/;
 
 # Escape HTML
-my %escape = ( '<' => '&lt;',
-	       '>' => '&gt;',
-	       '&' => '&amp;',
-	       '"' => '&quot;' );
+my %escape = ( '<' => '&lt;', '>' => '&gt;', '&' => '&amp;', '"' => '&quot;' );
 my $escape_re  = join '|' => keys %escape;
 
-my $colon = ":";
+# Determine the feed name
+my $conf = param('conf');
 
-# Load the specified configuration file
-my $conf = param('feed');
-_status(404, "No configuration given") unless ($conf);
-_status(404, "Invalid configuration file") unless (my $return = do $conf);
+# Try to load the corresponding configuration file
+status(404, "No configuration given") unless ($conf);
+status(404, "Invalid configuration file") unless (my $return = do "$conf");
 
-# Default title
-$title = '$host: $fn' unless $title;
+# Defaults for optional configuration variables
+$num_entries = 50 || $num_entries;
+$reverse_dns = 0 || $reverse_dns;
+$feed_subtitle = $feed_subtitle ? "  <subtitle>$feed_subtitle</subtitle>" : '';
+$feed_icon = $feed_icon ? "  <icon>$feed_icon</icon>" : '';
+$entry = '<entry>
+    <id>$base_url${feed_path}:$utc_date</id>
+    <title>$host: $req</title>
+    <updated>$utc_date</updated>
+    <content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml">
+    <ul>
+      <li><strong>Date:</strong> $utc_date</li>
+      <li><strong>User:</strong> $user</li>
+      <li><strong>Host:</strong> $host</li>
+      <li><strong>User Agent:</strong> $ua</li>
+      <li><strong>Referrer:</strong> <a href="$ref">$ref</a></li>
+      <li><strong>File:</strong> <a href="$base_url$req">$req</a></li>
+      <li><strong>Size:</strong> $sz</li>
+      <li><strong>Status:</strong> $code</li>
+    </ul>
+    </div>
+    </content>
+    <link rel="alternate" href="$ref"/>
+  </entry>
+' unless $entry;
 
 # Combine match/ignore regular expressions
 my $ref_ignore_re  = join '|', @ref_ignore if @ref_ignore;
@@ -51,54 +73,47 @@ my $req_match_re  = join '|', @req_match if @req_match;
 my $ua_ignore_re  = join '|', @ua_ignore if @ua_ignore;
 my $ua_match_re  = join '|', @ua_match if @ua_match;
 
-# When running as a CGI script, set the content type.
+# When running as a CGI script, set the content type
 if ($ENV{'SCRIPT_NAME'}) {
     print "Content-Type: application/atom+xml\r\n\r\n"
 }
 
 # Try to open the log file
 my $log = File::ReadBackwards->new($log_file) or
-  die "Can't read file: $log_file\n$!";
+  status(404, "Error reading log");
 
 # <updated>: derive by stat()ing the file for its mtime:
 my $updated_utc_date = _date_to_utc(stat("$log_file")->mtime);
 
 # Print the header
-print "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n";
-print "<feed xmlns=\"http://www.w3.org/2005/Atom\">\n";
-print "  <link rel=\"self\" href=\"$base_url$feed_path\"/>\n";
-print "  <id>$base_url$feed_path</id>\n";
-print "  <icon>$feed_icon</icon>\n" if $feed_icon;
-print "  <title>$feed_title</title>\n";
-print "  <subtitle>$feed_subtitle</subtitle>\n" if $feed_subtitle;
-print "  <author>\n" if $feed_author or $feed_author_email or $feed_author_uri;
-print "    <name>$feed_author</name>\n" if $feed_author;
-print "    <email>$feed_author_email</email>\n" if $feed_author_email;
-print "    <uri>$feed_author_uri</uri>\n" if $feed_author_uri;
-print "  </author>\n" if $feed_author or $feed_author_email or $feed_author_uri;
-print "  <updated>$updated_utc_date</updated>\n";
-
-my ($line, $ip, $rfc931, $user, $time, $fn, $code, $sz, $ref, $ua, $mode, $proto);
-
+print "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>
+<feed xmlns=\"http://www.w3.org/2005/Atom\">
+  <link rel=\"self\" href=\"$base_url$feed_path\"/>
+  <id>$base_url$feed_path</id>
+  <generator uri=\"http://jblevins.org/projects/logfeed/\" version=\"$version\">logfeed</generator>
+  <updated>$updated_utc_date</updated>
+  <title>$feed_title</title>
+  $feed_subtitle
+  $feed_icon";
 
 my $count = 0;
-while (defined($line = $log->readline) and ($count < $num_entries) ) {
-    ($ip, $rfc931, $user, $time, $fn, $code, $sz, $ref, $ua) = $line =~ $reg;
-    ($mode,$fn,$proto) = split(' ', $fn);
+while (defined(my $line = $log->readline) and ($count < $num_entries) ) {
+    ($ip, $rfc931, $user, $time, $req, $code, $sz, $ref, $ua) = $line =~ $reg;
+    ($mode,$req,$proto) = split(' ', $req);
 
-    next if $ref_ignore_re and $ref =~ $ref_ignore_re;   # Ignored referrers
-    next if $req_ignore_re and $fn =~ $req_ignore_re;    # Ignored requests
-    next if $ua_ignore_re and $ua =~ $ua_ignore_re;      # Ignored user agents
+    # Apply filters
+    next if $ref_ignore_re && $ref =~ $ref_ignore_re;    # Ignored referrers
+    next if $req_ignore_re && $req =~ $req_ignore_re;    # Ignored requests
+    next if $ua_ignore_re && $ua =~ $ua_ignore_re;       # Ignored user agents
 
-    next unless !$ref_match_re or $ref =~ $ref_match_re; # Match referrers
-    next unless !$req_match_re or $fn =~ $req_match_re;  # Match requests
-    next unless !$ua_match_re or $ua =~ $ua_match_re;    # Match user agents
+    next unless !$ref_match_re || $ref =~ $ref_match_re; # Match referrers
+    next unless !$req_match_re || $req =~ $req_match_re; # Match requests
+    next unless !$ua_match_re || $ua =~ $ua_match_re;    # Match user agents
 
     # Parse the date
-    my $utc_date = _date_to_utc(str2time($time));
+    $utc_date = _date_to_utc(str2time($time));
 
     # Reverse DNS lookup
-    my $host;
     if ($reverse_dns) {
 	my @h = gethostbyaddr(pack('C4',split('\.',$ip)),2);
 	$host = @h ? $h[0] : $ip;
@@ -108,36 +123,13 @@ while (defined($line = $log->readline) and ($count < $num_entries) ) {
 
     # Escape <, >, &, and " in the referring URL and request filename.
     $ref =~ s/($escape_re)/$escape{$1}/g;
-    $fn =~ s/($escape_re)/$escape{$1}/g;
+    $req =~ s/($escape_re)/$escape{$1}/g;
 
     # Shorten the referrer by omitting CGI parameters
-    my $short_ref = ($ref =~ m/(.*?)\?.*/) ? $1 : $ref;
+    $short_ref = ($ref =~ m/(.*?)\?.*/) ? $1 : $ref;
 
-    # Use $title as a template to create $entry_title.
-    my $entry_title = $title;
-    $entry_title =~ s/(\$\w+(?:::)?\w*)/"defined $1 ? $1 : ''"/gee;
-
-    # Print the entry.  Note: if your site commonly gets several hits per
-    # second, you may want to choose a new <id> tag here.
-    print "  <entry>\n";
-    print "    <id>$base_url$feed_path$colon$utc_date</id>\n";
-    print "    <title>$entry_title</title>\n";
-    print "    <updated>$utc_date</updated>\n";
-    print "    <content type=\"xhtml\"><div xmlns=\"http://www.w3.org/1999/xhtml\">\n";
-    print "    <ul>\n";
-    print "      <li><strong>Date:</strong> $utc_date</li>\n";
-    print "      <li><strong>User:</strong> $user</li>\n" if $user ne "-";
-    print "      <li><strong>Host:</strong> $host</li>\n";
-    print "      <li><strong>User Agent:</strong> $ua</li>\n" if $show_ua;
-    print "      <li><strong>Referrer:</strong> <a href=\"$ref\">$ref</a></li>\n";
-    print "      <li><strong>File:</strong> <a href=\"$base_url$fn\">$fn</a></li>\n";
-    print "      <li><strong>Size:</strong> $sz</li>\n" if $show_size;
-    print "      <li><strong>Status:</strong> $code</li>\n" if $show_status;
-    print "    </ul>\n";
-    print "    </div>\n";
-    print "    </content>\n";
-    print "    <link rel=\"alternate\" href=\"$ref\"/>\n";
-    print "  </entry>\n";
+    # Print the entry.
+    print interpolate($entry);
     $count += 1;
 }
 
@@ -153,12 +145,20 @@ sub _date_to_utc {
 	    $utc[5]+1900, $utc[4]+1, $utc[3], $utc[2], $utc[1], $utc[0]);
 }
 
-sub _status {
+# Return a status code and exit
+sub status {
     my ($code, $msg) = @_;
     print "Content-Type: text/plain\r\n" if ($code != 304);
     print "Status: $code $msg\r\n\r\n";
     print "$msg\n" if ($code != 304);
     exit 1;
+}
+
+# Borrowed from Blosxom's interpolate() routine.
+sub interpolate {
+    my $template = shift;
+    $template =~ s/(\$\w+(?:::)?\w*)/"defined $1 ? $1 : ''"/gee;
+    return $template;
 }
 
 __END__
@@ -175,7 +175,7 @@ standalone script, for example, ran locally by a cron job.
 
 =head1 VERSION
 
-2008-01-15
+1.0
 
 =head1 AUTHORS
 
@@ -185,14 +185,14 @@ Jason Blevins <jrblevin@sdf.lonestar.org>, http://jblevins.org/
 
 First, create a configuration file, say B<foo>, by using the B<example.conf>
 file as a template.  Then run B<log-feed.pl> either locally, as in B<perl
-log-feed.pl feed=foo> or as a CGI script: B<log-feed.pl?feed=foo>.
+log-feed.pl conf=foo> or as a CGI script: B<log-feed.pl?conf=foo>.
 
 =head1 FURTHER CONFIGURATION
 
 In order to clean up the URLs when running in CGI mode, one could write a
 B<.htaccess> file using B<mod_rewrite>.  For example:
 
-    RewriteRule ^feeds/(.*).atom$ feeds/log-feed.cgi?feed=$1.conf
+    RewriteRule ^feeds/(.*).atom$ feeds/log-feed.cgi?conf=$1.conf
 
 Then, given a config file called, say, B<foo.conf>, the feed would be
 made available at B</feeds/foo.atom>.

@@ -4,5 +4,4 @@ TODO
  * Timeout for reverse DNS lookup
  * Caching of hostnames
  * Filtering on IP addresses
- * Entry templating!
  * Put referrer CGI parameters in a hash for reporting and templating
