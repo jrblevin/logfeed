@@ -1,6 +1,17 @@
 Acknowledgments
 ===============
 
- * Rael Dornfest, Frank Hecker, Sam Pearson, and Sam Ruby wrote the Blosxom
-   atomfeed plugin which I used as a reference and borrowed a few things
-   from.
+ * Rael Dornfest wrote Blosxom, which has served as a model due to
+   it's elegant simplicity, as well as many related Blosxom plugins.
+   Blosxom itself inspired logfeed's support of entry templates.
+   logfeed's pure Perl configuration file framework is based on the
+   Blosxom config plugin.  Generation of the Atom itself is based on
+   the Blosxom atomfeed plugin.
+
+ * Morten Høybye Frederiksen wrote bzr-feed, a simple, focused, and
+   extremely useful Python script which in large part inspired this
+   project.
+
+ * Frank Hecker, Sam Pearson, and Sam Ruby also contributed to the
+   Blosxom atomfeed plugin which I used as a reference and borrowed a
+   few things from.
