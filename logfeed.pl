@@ -6,15 +6,16 @@
 # Author: Jason Blevins <jrblevin@sdf.lonestar.org>
 # License: MIT
 # Created: January 15, 2008
-# Last Modified: January 15, 2008 23:29 EST
+# Last Modified: January 16, 2008 00:03 EST
 
 package logfeed;
 
 use vars qw! $log_file $feed_title $base_url $feed_path $feed_subtitle
-             $feed_icon @ref_ignore @ref_match @req_ignore @req_match
+             $feed_icon $author_name $author_uri $author_email $feed_author
+	     @ref_ignore @ref_match @req_ignore @req_match
              @ua_ignore @ua_match $num_entries $reverse_dns $ip $host $rfc931
              $user $time $utc_date $req $code $sz $ref $short_ref $ua $mode
-             $proto $entry !;
+             $proto $entry $colon !;
 
 use strict;
 use FileHandle;
@@ -24,6 +25,8 @@ use Date::Parse qw/str2time/;
 use CGI qw/:standard/;
 
 my $version = '1.0';
+
+my $colon = ":";
 
 # Log regexp
 my $reg = qr/^(\S+) (\S+) (\S+) \[([^\]\[]+)\] \"([^"]*)\" (\S+) (\S+) \"?([^"]*)\"? \"([^"]*)\"/;
@@ -44,9 +47,15 @@ $num_entries = 50 || $num_entries;
 $reverse_dns = 0 || $reverse_dns;
 $feed_subtitle = $feed_subtitle ? "  <subtitle>$feed_subtitle</subtitle>" : '';
 $feed_icon = $feed_icon ? "  <icon>$feed_icon</icon>" : '';
+$author_uri = $author_uri ? "<uri>$author_uri</uri>" : '';
+$author_email = $author_email ? "<uri>$author_uri</uri>" : '';
 $entry = '<entry>
-    <id>$base_url${feed_path}:$utc_date</id>
+    <id>$base_url$feed_path$colon$utc_date</id>
     <title>$host: $req</title>
+    <author>
+      <name>$author_name</name>
+      $author_uri$author_email
+    </author>
     <updated>$utc_date</updated>
     <content type="xhtml"><div xmlns="http://www.w3.org/1999/xhtml">
     <ul>
@@ -55,7 +64,7 @@ $entry = '<entry>
       <li><strong>Host:</strong> $host</li>
       <li><strong>User Agent:</strong> $ua</li>
       <li><strong>Referrer:</strong> <a href="$ref">$ref</a></li>
-      <li><strong>File:</strong> <a href="$base_url$req">$req</a></li>
+      <li><strong>File:</strong> <a href="$base_url$req">$base_url$req</a></li>
       <li><strong>Size:</strong> $sz</li>
       <li><strong>Status:</strong> $code</li>
     </ul>
