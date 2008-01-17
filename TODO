@@ -3,5 +3,6 @@ TODO
 
  * Timeout for reverse DNS lookup
  * Caching of hostnames
- * Filtering on IP addresses
  * Put referrer CGI parameters in a hash for reporting and templating
+
+ * Filtering on IP addresses (Completed 2008-01-17)

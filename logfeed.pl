@@ -6,14 +6,13 @@
 # Author: Jason Blevins <jrblevin@sdf.lonestar.org>
 # License: MIT
 # Created: January 15, 2008
-# Last Modified: January 16, 2008 00:03 EST
+# Last Modified: January 17, 2008 11:55 EST
 
 package logfeed;
 
 use vars qw! $log_file $feed_title $base_url $feed_path $feed_subtitle
              $feed_icon $author_name $author_uri $author_email $feed_author
-	     @ref_ignore @ref_match @req_ignore @req_match
-             @ua_ignore @ua_match $num_entries $reverse_dns $ip $host $rfc931
+             %ignore %match $num_entries $reverse_dns $ip $host $rfc931
              $user $time $utc_date $req $code $sz $ref $short_ref $ua $mode
              $proto $entry $colon !;
 
@@ -24,7 +23,7 @@ use File::ReadBackwards;
 use Date::Parse qw/str2time/;
 use CGI qw/:standard/;
 
-my $version = '1.0';
+my $version = '1.1';
 
 my $colon = ":";
 
@@ -40,6 +39,8 @@ my $conf = param('conf');
 
 # Try to load the corresponding configuration file
 status(404, "No configuration given") unless ($conf);
+%match = ();
+%ignore = ();
 status(404, "Invalid configuration file") unless (my $return = do "$conf");
 
 # Defaults for optional configuration variables
@@ -74,14 +75,6 @@ $entry = '<entry>
   </entry>
 ' unless $entry;
 
-# Combine match/ignore regular expressions
-my $ref_ignore_re  = join '|', @ref_ignore if @ref_ignore;
-my $ref_match_re  = join '|', @ref_match if @ref_match;
-my $req_ignore_re  = join '|', @req_ignore if @req_ignore;
-my $req_match_re  = join '|', @req_match if @req_match;
-my $ua_ignore_re  = join '|', @ua_ignore if @ua_ignore;
-my $ua_match_re  = join '|', @ua_match if @ua_match;
-
 # When running as a CGI script, set the content type
 if ($ENV{'SCRIPT_NAME'}) {
     print "Content-Type: application/atom+xml\r\n\r\n"
@@ -110,14 +103,21 @@ while (defined(my $line = $log->readline) and ($count < $num_entries) ) {
     ($ip, $rfc931, $user, $time, $req, $code, $sz, $ref, $ua) = $line =~ $reg;
     ($mode,$req,$proto) = split(' ', $req);
 
-    # Apply filters
-    next if $ref_ignore_re && $ref =~ $ref_ignore_re;    # Ignored referrers
-    next if $req_ignore_re && $req =~ $req_ignore_re;    # Ignored requests
-    next if $ua_ignore_re && $ua =~ $ua_ignore_re;       # Ignored user agents
+    # Apply ignore filters
+    next if $ignore{'ip'} && $ip =~ $ignore{'ip'};
+    next if $ignore{'user'} && $user =~ $ignore{'user'};
+    next if $ignore{'req'} && $req =~ $ignore{'req'};
+    next if $ignore{'code'} && $code =~ $ignore{'code'};
+    next if $ignore{'ref'} && $ref =~ $ignore{'ref'};
+    next if $ignore{'ua'} && $ua =~ $ignore{'ua'};
 
-    next unless !$ref_match_re || $ref =~ $ref_match_re; # Match referrers
-    next unless !$req_match_re || $req =~ $req_match_re; # Match requests
-    next unless !$ua_match_re || $ua =~ $ua_match_re;    # Match user agents
+    # Apply match filters
+    next unless !$match{'ip'} || $ip =~ $match{'ip'};
+    next unless !$match{'user'} || $user =~ $match{'user'};
+    next unless !$match{'req'} || $req =~ $match{'req'};
+    next unless !$match{'code'} || $code =~ $match{'code'};
+    next unless !$match{'ref'} || $ref =~ $match{'ref'};
+    next unless !$match{'ua'} || $ua =~ $match{'ua'};
 
     # Parse the date
     $utc_date = _date_to_utc(str2time($time));
@@ -184,7 +184,7 @@ standalone script, for example, ran locally by a cron job.
 
 =head1 VERSION
 
-1.0
+1.1
 
 =head1 AUTHORS
 
