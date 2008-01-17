@@ -6,7 +6,7 @@
 # Author: Jason Blevins <jrblevin@sdf.lonestar.org>
 # License: MIT
 # Created: January 15, 2008
-# Last Modified: January 17, 2008 11:55 EST
+# Last Modified: January 17, 2008 18:46 EST
 
 package logfeed;
 
@@ -14,21 +14,40 @@ use vars qw! $log_file $feed_title $base_url $feed_path $feed_subtitle
              $feed_icon $author_name $author_uri $author_email $feed_author
              %ignore %match $num_entries $reverse_dns $ip $host $rfc931
              $user $time $utc_date $req $code $sz $ref $short_ref $ua $mode
-             $proto $entry $colon !;
+             $proto $entry $colon $log_re $time_re !;
 
 use strict;
 use FileHandle;
 use File::stat;
-use File::ReadBackwards;
-use Date::Parse qw/str2time/;
 use CGI qw/:standard/;
+use Time::Local;
+use File::ReadBackwards;
 
-my $version = '1.1';
+my $version = '1.15';
 
 my $colon = ":";
 
-# Log regexp
-my $reg = qr/^(\S+) (\S+) (\S+) \[([^\]\[]+)\] \"([^"]*)\" (\S+) (\S+) \"?([^"]*)\"? \"([^"]*)\"/;
+my %month2num = (
+    'Jan' => '01',
+    'Feb' => '02',
+    'Mar' => '03',
+    'Apr' => '04',
+    'May' => '05',
+    'Jun' => '06',
+    'Jul' => '07',
+    'Aug' => '08',
+    'Sep' => '09',
+    'Oct' => '10',
+    'Nov' => '11',
+    'Dec' => '12',
+);
+
+# Log regular expressions.  Example:
+#
+# 122.152.128.49 - - [31/Dec/2007:16:05:21 -0500] "GET /robots.txt HTTP/1.1" 200 114 "-" "Baiduspider+(+http://www.baidu.com/search/spider_jp.html)"
+$log_re = qr/^(\S+) (\S+) (\S+) \[([^\]\[]+)\] \"([^"]*)\" (\S+) (\S+) \"?([^"]*)\"? \"([^"]*)\"/;
+$time_re = qr#^(\d{2})/(\w{3})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+-])(\d{2})(\d{2})$#;
+
 
 # Escape HTML
 my %escape = ( '<' => '&lt;', '>' => '&gt;', '&' => '&amp;', '"' => '&quot;' );
@@ -85,7 +104,7 @@ my $log = File::ReadBackwards->new($log_file) or
   status(404, "Error reading log");
 
 # <updated>: derive by stat()ing the file for its mtime:
-my $updated_utc_date = _date_to_utc(stat("$log_file")->mtime);
+my $updated_utc_date = time_to_utc(stat($log_file)->mtime);
 
 # Print the header
 print "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>
@@ -100,7 +119,7 @@ print "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>
 
 my $count = 0;
 while (defined(my $line = $log->readline) and ($count < $num_entries) ) {
-    ($ip, $rfc931, $user, $time, $req, $code, $sz, $ref, $ua) = $line =~ $reg;
+    ($ip, $rfc931, $user, $time, $req, $code, $sz, $ref, $ua) = $line =~ $log_re;
     ($mode,$req,$proto) = split(' ', $req);
 
     # Apply ignore filters
@@ -120,7 +139,7 @@ while (defined(my $line = $log->readline) and ($count < $num_entries) ) {
     next unless !$match{'ua'} || $ua =~ $match{'ua'};
 
     # Parse the date
-    $utc_date = _date_to_utc(str2time($time));
+    $utc_date = logtime_to_utc($time);
 
     # Reverse DNS lookup
     if ($reverse_dns) {
@@ -147,7 +166,26 @@ $log->close();
 print "</feed>\n";
 
 
-sub _date_to_utc {
+# Converts times of the form "17/Jan/2008:17:15:04 -0500" to the
+# format required by the Atom specification.
+sub logtime_to_utc {
+    my $logtime = shift;
+    my ($day, $mo, $yr, $hr, $min, $sec, $pm, $tzhr, $tzmin) = $logtime =~ $time_re;
+    $mo = $month2num{$mo};
+    my $time = timegm($sec, $min, $hr, $day, $mo, $yr);
+
+    my $offset = $tzhr * 60*60 + $tzmin * 60;
+    if ($pm eq "+") {
+	$time -= $offset;
+    } else {
+	$time += $offset;
+    }
+    time_to_utc($time);
+}
+
+
+# Converts times to the format required by the Atom specification.
+sub time_to_utc {
     my $time = shift;
     my @utc = gmtime($time);
     sprintf("%4d-%02d-%02dT%02d:%02d:%02dZ",
@@ -184,7 +222,7 @@ standalone script, for example, ran locally by a cron job.
 
 =head1 VERSION
 
-1.1
+1.15
 
 =head1 AUTHORS
 
@@ -205,11 +243,6 @@ B<.htaccess> file using B<mod_rewrite>.  For example:
 
 Then, given a config file called, say, B<foo.conf>, the feed would be
 made available at B</feeds/foo.atom>.
-
-=head1 SEE ALSO
-
-Atom 1.0 Specification:
-http://atompub.org/2005/07/11/draft-ietf-atompub-format-10.html
 
 =head1 BUGS
 
