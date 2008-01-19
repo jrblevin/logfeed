@@ -13,7 +13,8 @@ use vars qw! $log_file $feed_title $base_url $feed_path $feed_subtitle
              $feed_icon $author_name $author_uri $author_email $feed_author
              %ignore %match $num_entries $reverse_dns $ip $host $rfc931
              $user $time $utc_date $req $code $sz $ref $short_ref $ua $mode
-             $proto $entry $colon $log_re $time_re !;
+             $proto $entry $colon $log_re $time_re $id_domain $id_year
+	     $id_time !;
 
 use strict;
 use FileHandle;
@@ -22,10 +23,9 @@ use CGI qw/:standard/;
 use Time::Local;
 use File::ReadBackwards;
 
+# Define some constants
 my $version = '1.16';
-
 my $colon = ":";
-
 my %month2num = (
     'Jan' => '01',
     'Feb' => '02',
@@ -47,8 +47,7 @@ my %month2num = (
 $log_re = qr/^(\S+) (\S+) (\S+) \[([^\]\[]+)\] \"([^"]*)\" (\S+) (\S+) \"?([^"]*)\"? \"([^"]*)\"/;
 $time_re = qr#^(\d{2})/(\w{3})/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+-])(\d{2})(\d{2})$#;
 
-
-# Escape HTML
+# Regexes for escaping HTML
 my %escape = ( '<' => '&lt;', '>' => '&gt;', '&' => '&amp;', '"' => '&quot;' );
 my $escape_re  = join '|' => keys %escape;
 
@@ -57,8 +56,6 @@ my $conf = param('conf');
 
 # Try to load the corresponding configuration file
 status(404, "No configuration given") unless ($conf);
-%match = ();
-%ignore = ();
 status(404, "Invalid configuration file") unless (my $return = do "$conf");
 
 # Defaults for optional configuration variables
@@ -69,7 +66,7 @@ $feed_icon = $feed_icon ? "  <icon>$feed_icon</icon>" : '';
 $author_uri = $author_uri ? "<uri>$author_uri</uri>" : '';
 $author_email = $author_email ? "<uri>$author_uri</uri>" : '';
 $entry = '<entry>
-    <id>$base_url$feed_path$colon$utc_date</id>
+    <id>tag$colon$id_domain,$id_year$colon$feed_path/$id_time/$ip$req</id>
     <title>$host: $req</title>
     <author>
       <name>$author_name</name>
@@ -93,6 +90,9 @@ $entry = '<entry>
   </entry>
 ' unless $entry;
 
+# Obtain the domain name from $base_url
+($id_domain) = $base_url =~ m#http://(?:www\.)?([^\/]+)#;
+
 # When running as a CGI script, set the content type
 if ($ENV{'SCRIPT_NAME'}) {
     print "Content-Type: application/atom+xml\r\n\r\n"
@@ -109,12 +109,13 @@ my $updated_utc_date = time_to_utc(stat($log_file)->mtime);
 print "<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>
 <feed xmlns=\"http://www.w3.org/2005/Atom\">
   <link rel=\"self\" href=\"$base_url$feed_path\"/>
-  <id>$base_url$feed_path</id>
+  <id>tag$colon$id_domain,$id_year$colon$feed_path</id>
   <generator uri=\"http://jblevins.org/projects/logfeed/\" version=\"$version\">logfeed</generator>
   <updated>$updated_utc_date</updated>
   <title>$feed_title</title>
   $feed_subtitle
-  $feed_icon";
+  $feed_icon
+";
 
 my $count = 0;
 while (defined(my $line = $log->readline) and ($count < $num_entries) ) {
@@ -138,7 +139,7 @@ while (defined(my $line = $log->readline) and ($count < $num_entries) ) {
     next unless !$match{'ua'} || $ua =~ $match{'ua'};
 
     # Parse the date
-    $utc_date = logtime_to_utc($time);
+    ($id_time, $utc_date) = logtime_to_utc($time);
 
     # Reverse DNS lookup
     if ($reverse_dns) {
@@ -180,7 +181,7 @@ sub logtime_to_utc {
     } else {
 	$time += $offset;
     }
-    time_to_utc($time);
+    return ($time, time_to_utc($time));
 }
 
 
