@@ -6,7 +6,6 @@
 # Author: Jason Blevins <jrblevin@sdf.lonestar.org>
 # License: MIT
 # Created: January 15, 2008
-# Last Modified: January 17, 2008 18:46 EST
 
 package logfeed;
 
@@ -23,7 +22,7 @@ use CGI qw/:standard/;
 use Time::Local;
 use File::ReadBackwards;
 
-my $version = '1.15';
+my $version = '1.16';
 
 my $colon = ":";
 
@@ -149,9 +148,10 @@ while (defined(my $line = $log->readline) and ($count < $num_entries) ) {
 	$host = $ip;
     }
 
-    # Escape <, >, &, and " in the referring URL and request filename.
+    # Escape <, >, &, and ":
     $ref =~ s/($escape_re)/$escape{$1}/g;
     $req =~ s/($escape_re)/$escape{$1}/g;
+    $ua =~ s/($escape_re)/$escape{$1}/g;
 
     # Shorten the referrer by omitting CGI parameters
     $short_ref = ($ref =~ m/(.*?)\?.*/) ? $1 : $ref;
@@ -222,7 +222,7 @@ standalone script, for example, ran locally by a cron job.
 
 =head1 VERSION
 
-1.15
+1.16
 
 =head1 AUTHORS
 
