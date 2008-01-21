@@ -172,7 +172,7 @@ print "</feed>\n";
 sub logtime_to_utc {
     my $logtime = shift;
     my ($day, $mo, $yr, $hr, $min, $sec, $pm, $tzhr, $tzmin) = $logtime =~ $time_re;
-    $mo = $month2num{$mo};
+    $mo = $month2num{$mo} - 1;
     my $time = timegm($sec, $min, $hr, $day, $mo, $yr);
 
     my $offset = $tzhr * 60*60 + $tzmin * 60;
