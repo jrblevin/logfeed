@@ -64,7 +64,7 @@ $reverse_dns = 0 || $reverse_dns;
 $feed_subtitle = $feed_subtitle ? "  <subtitle>$feed_subtitle</subtitle>" : '';
 $feed_icon = $feed_icon ? "  <icon>$feed_icon</icon>" : '';
 $author_uri = $author_uri ? "<uri>$author_uri</uri>" : '';
-$author_email = $author_email ? "<uri>$author_uri</uri>" : '';
+$author_email = $author_email ? "<email>$author_email</email>" : '';
 $entry = '<entry>
     <id>tag$colon$id_domain,$id_year$colon$feed_path/$id_time/$ip$req</id>
     <title>$host: $req</title>
