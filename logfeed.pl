@@ -59,8 +59,8 @@ status(404, "No configuration given") unless ($conf);
 status(404, "Invalid configuration file") unless (my $return = do "$conf");
 
 # Defaults for optional configuration variables
-$num_entries = 50 || $num_entries;
-$reverse_dns = 0 || $reverse_dns;
+$num_entries = 50 unless defined $num_entries;
+$reverse_dns = 0 unless defined $reverse_dns;
 $feed_subtitle = $feed_subtitle ? "  <subtitle>$feed_subtitle</subtitle>" : '';
 $feed_icon = $feed_icon ? "  <icon>$feed_icon</icon>" : '';
 $author_uri = $author_uri ? "<uri>$author_uri</uri>" : '';
