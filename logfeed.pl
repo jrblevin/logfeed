@@ -24,7 +24,7 @@ use Time::Local;
 use File::ReadBackwards;
 
 # Define some constants
-my $version = '1.16';
+my $version = '1.17';
 my $colon = ":";
 my %month2num = (
     'Jan' => '01',
